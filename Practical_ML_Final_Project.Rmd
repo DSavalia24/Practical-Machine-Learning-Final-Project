@@ -141,31 +141,3 @@ pml_write_files = function(x){
 
 pml_write_files(predict(modelRF, testing[, -length(names(testing))]))
 ```
-
-
-
-
-
-
-
-
-
-
-```{r}
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
