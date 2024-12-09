@@ -1,0 +1,171 @@
+---
+title: "Practical_ML_Final_Project"
+author: "Darshak savalia"
+date: "12/9/2024"
+output: 
+  html_document:
+    keep_md: yes
+  md_document:
+    variant: markdown_github
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, fig.width=10, fig.height=5)
+options(width=120)
+
+library(lattice)
+library(ggplot2)
+library(Rmisc)
+library(plyr)
+set.seed(56789) #Using seed for reproducible proposes
+library(caret)
+library(corrplot)
+library(rpart)
+library(rpart.plot)
+```
+
+## Executive Summary
+This analysis leverages a dataset provided by the HAR group ([HAR Dataset](http://groupware.les.inf.puc-rio.br/har)) to develop a predictive model that classifies the type of exercise performed based on 159 features. 
+
+The workflow involves the following key steps:
+- Data preparation and cleaning
+- Exploratory data analysis focusing on relevant variables
+- Model selection and experimentation
+- Model evaluation to ensure adherence to performance standards
+- Deriving conclusions based on the analysis
+- Classifying the test dataset using the best-performing model
+
+## Data Processing, Cleaning, and Exploratory data analyses 
+First, we examine the dataset's structure and dimensions to understand its composition.
+
+```{r}
+training.raw <- read.csv("pml-training.csv")
+testing.raw <- read.csv("pml-testing.csv")
+```
+
+```{r}
+# Check dimensions of the dataset
+dim(training.raw)
+head(training.raw)
+# str(training.raw) # commented out to reduce space
+# summary(training.raw) # commented out to reduce space
+```
+Lets clean up our data by getting rid of some less important observations.
+Lets start with the near zero variance vraibles
+```{r}
+NZV <- nearZeroVar(training.raw, saveMetrics = TRUE)
+head(NZV, 20)
+
+training01 <- training.raw[, !NZV$nzv]
+testing01 <- testing.raw[, !NZV$nzv]
+dim(training01)
+dim(testing01)
+rm(trainRaw)
+rm(testRaw)
+rm(NZV)
+```
+Now lets get rid of some of the timebased data that does not provide us much value
+```{r}
+regex <- grepl("^X|timestamp|user_name", names(training01))
+training <- training01[, !regex]
+testing <- testing01[, !regex]
+rm(regex)
+rm(training01)
+rm(testing01)
+dim(training)
+dim(testing)
+```
+Finally, lets get rid of the null values
+```{r}
+cond <- (colSums(is.na(training)) == 0)
+training <- training[, cond]
+testing <- testing[, cond]
+rm(cond)
+```
+We have reduced the number of features from 160 to 54. Much better. Now lets take a look at the correlation.
+```{r}
+corrplot(cor(training[, -length(names(training))]), method = "color", tl.cex = 0.5)
+```
+## Splitting data into training, testing and validation
+```{r}
+inTrain <- createDataPartition(training$classe, p = 0.70, list = FALSE)
+validation <- training[-inTrain, ]
+training <- training[inTrain, ]
+rm(inTrain)
+```
+
+## Decision Tree
+
+```{r}
+modelTree <- rpart(classe ~ ., data = training, method = "class")
+prp(modelTree)
+
+predictTree <- predict(modelTree, validation, type = "class")
+confusionMatrix(validation$classe, predictTree)
+
+accuracy <- postResample(predictTree, validation$classe)
+ose <- 1 - as.numeric(confusionMatrix(validation$classe, predictTree)$overall[1])
+rm(predictTree)
+rm(modelTree)
+```
+
+## Random Forest
+```{r}
+modelRF <- train(classe ~ ., data = training, method = "rf", trControl = trainControl(method = "cv", 5), ntree = 250)
+modelRF
+
+predictRF <- predict(modelRF, validation)
+confusionMatrix(validation$classe, predictRF)
+
+accuracy <- postResample(predictRF, validation$classe)
+ose <- 1 - as.numeric(confusionMatrix(validation$classe, predictRF)$overall[1])
+rm(predictRF)
+```
+
+## Model Aplication on initial data
+```{r}
+rm(accuracy)
+rm(ose)
+predict(modelRF, testing[, -length(names(testing))])
+```
+## Generating files for final submission
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("./Assignment_Solutions/problem_id_",i,".txt")
+    write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, col.names = FALSE)
+  }
+}
+
+pml_write_files(predict(modelRF, testing[, -length(names(testing))]))
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
